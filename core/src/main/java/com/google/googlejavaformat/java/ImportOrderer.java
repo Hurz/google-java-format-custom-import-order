@@ -62,7 +62,7 @@ public class ImportOrderer {
     return reorderImports(text, Style.GOOGLE);
   }
 
-  private String reorderImports() throws FormatterException {
+  public String reorderImports() throws FormatterException {
     int firstImportStart;
     Optional<Integer> maybeFirstImport = findIdentifier(0, IMPORT_OR_CLASS_START);
     if (!maybeFirstImport.isPresent() || !tokenAt(maybeFirstImport.get()).equals("import")) {
@@ -183,41 +183,51 @@ public class ImportOrderer {
     }
   }
 
+  public ImportOrderer(String text, Comparator<Import> importComparator, BiFunction<Import, Import, Boolean> shouldInsertBlankLineFn) throws FormatterException {
+    this.text = text;
+    this.toks = JavaInput.buildToks(text, CLASS_START);
+    this.lineSeparator = Newlines.guessLineSeparator(text);
+    this.importComparator = importComparator;
+    this.shouldInsertBlankLineFn = shouldInsertBlankLineFn;
+  }
+
   /** An import statement. */
-  class Import {
+  public static class Import {
     private final String imported;
     private final boolean isStatic;
     private final String trailing;
+    private final String lineSeparator;
 
-    Import(String imported, String trailing, boolean isStatic) {
+    Import(String imported, String trailing, boolean isStatic, String lineSeparator) {
       this.imported = imported;
       this.trailing = trailing;
       this.isStatic = isStatic;
+      this.lineSeparator = lineSeparator;
     }
 
     /** The name being imported, for example {@code java.util.List}. */
-    String imported() {
+    public String imported() {
       return imported;
     }
 
     /** True if this is {@code import static}. */
-    boolean isStatic() {
+    public boolean isStatic() {
       return isStatic;
     }
 
     /** The top-level package of the import. */
-    String topLevel() {
+    public String topLevel() {
       return DOT_SPLITTER.split(imported()).iterator().next();
     }
 
     /** True if this is an Android import per AOSP style. */
-    boolean isAndroid() {
+    public boolean isAndroid() {
       return Stream.of("android.", "androidx.", "dalvik.", "libcore.", "com.android.")
           .anyMatch(imported::startsWith);
     }
 
     /** True if this is a Java import per AOSP style. */
-    boolean isJava() {
+    public boolean isJava() {
       switch (topLevel()) {
         case "java":
         case "javax":
@@ -233,7 +243,7 @@ public class ImportOrderer {
      * disallowed by the style guide), the trailing whitespace of the first import does not include
      * a line terminator.
      */
-    String trailing() {
+    public String trailing() {
       return trailing;
     }
 
@@ -350,7 +360,7 @@ public class ImportOrderer {
         // Extra semicolons are not allowed by the JLS but are accepted by javac.
         i++;
       }
-      imports.add(new Import(importedName, trailing.toString(), isStatic));
+      imports.add(new Import(importedName, trailing.toString(), isStatic, lineSeparator));
       // Remember the position just after the import we just saw, before skipping blank lines.
       // If the next thing after the blank lines is not another import then we don't want to
       // include those blank lines in the text to be replaced.
